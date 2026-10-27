@@ -107,6 +107,9 @@ class FlightOfferResponse(BaseModel):
     currency: str
     airline_name: Optional[str] = None
     airline_code: Optional[str] = None
+    cabin_class: Optional[str] = None
+    is_demo: bool = False
+    booking_url: Optional[str] = None
     slices: List[FlightSliceResponse] = []
     provider: str = "duffel"
 
@@ -116,3 +119,6 @@ class FlightSearchResponse(BaseModel):
     total_offers: int
     offers: List[FlightOfferResponse]
     provider: str = "duffel"
+    live_mode: bool = False
+    is_demo: bool = False
+    demo_notice: Optional[str] = None

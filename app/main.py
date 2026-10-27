@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import flights, health
+from app.routers import flights, health, rewards
 
 # Setup logging
 logging.basicConfig(
@@ -50,3 +50,4 @@ app.add_middleware(
 # Register routers
 app.include_router(health.router)
 app.include_router(flights.router)
+app.include_router(rewards.router)

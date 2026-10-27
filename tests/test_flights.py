@@ -347,3 +347,24 @@ def test_token_never_leaked_in_response(mock_post):
 
     assert secret_token not in response.text
     assert "Authorization" not in response.text
+
+
+def test_unconfigured_duffel_with_demo_mode():
+    app.dependency_overrides[get_duffel_service] = lambda: DuffelService(api_key="")
+
+    response = client.post("/api/v1/flights/cash?demo_mode=true", json={
+        "origin": "JFK",
+        "destination": "LHR",
+        "departure_date": FUTURE_DEPARTURE,
+        "passengers": 1,
+        "cabin_class": "economy",
+    })
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_demo"] is True
+    assert data["provider"] == "duffel_demo_fixture"
+    assert "DEMO DATA" in data["demo_notice"]
+    assert len(data["offers"]) >= 1
+    assert data["offers"][0]["is_demo"] is True

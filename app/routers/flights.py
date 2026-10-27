@@ -39,12 +39,23 @@ def get_duffel_service(settings: Settings = Depends(get_settings)) -> DuffelServ
 )
 async def search_cash_flights(
     request: FlightCashSearchRequest,
+    demo_mode: bool = False,
+    settings: Settings = Depends(get_settings),
     service: DuffelService = Depends(get_duffel_service),
 ) -> FlightSearchResponse:
     """
     Search cash flights with origin/destination IATA codes, dates, passengers, and cabin class.
+    If the Duffel API is configured, queries Duffel directly.
+    If the Duffel API is unconfigured and demo mode or development environment is active,
+    returns clearly labeled demo test fixtures.
     """
     try:
+        if not service.is_configured:
+            if demo_mode:
+                logger.info("Duffel unconfigured and demo_mode requested; returning labeled demo fixture offers.")
+                return service.generate_demo_offers(request)
+            raise DuffelConfigurationError("Duffel API key is not configured. Cash flight search is currently unavailable.")
+
         return await service.search_cash_flights(request)
     except DuffelConfigurationError as exc:
         logger.error("Duffel service is not configured: %s", exc)

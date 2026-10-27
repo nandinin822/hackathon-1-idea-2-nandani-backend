@@ -204,16 +204,27 @@ class DuffelService:
                         currency=currency,
                         airline_name=airline_name,
                         airline_code=airline_code,
+                        cabin_class=data.get("cabin_class"),
+                        is_demo=not bool(data.get("live_mode", False)),
+                        booking_url=None,
                         slices=parsed_slices,
                         provider="duffel",
                     )
                 )
 
+            live_mode = bool(data.get("live_mode", False))
             return FlightSearchResponse(
                 search_id=search_id,
                 total_offers=len(parsed_offers),
                 offers=parsed_offers,
                 provider="duffel",
+                live_mode=live_mode,
+                is_demo=not live_mode,
+                demo_notice=(
+                    "Duffel Sandbox Mode: Realistic test flight offers provided by the Duffel test airline. Fares and schedules are simulated."
+                    if not live_mode
+                    else None
+                ),
             )
         except DuffelResponseError:
             raise
@@ -288,3 +299,96 @@ class DuffelService:
             return f"Flight provider returned error code {response.status_code}."
         except Exception:
             return f"Flight provider returned error code {response.status_code}."
+
+    def generate_demo_offers(self, request: FlightCashSearchRequest) -> FlightSearchResponse:
+        """
+        Generates structured, explicitly labeled demo offers when the live Duffel API
+        is not configured. Used strictly in demo/development mode and never replaces
+        failed live calls.
+        """
+        dep_date_str = request.departure_date.isoformat()
+        ret_date_str = request.return_date.isoformat() if request.return_date else None
+        cabin_str = request.cabin_class.value
+        base_price = 450.0 if cabin_str == "economy" else (850.0 if cabin_str == "premium_economy" else 1850.0)
+        
+        sample_carriers = [
+            ("Iberia", "IB", "IB3160", 1.0, "PT7H45M"),
+            ("British Airways", "BA", "BA0178", 1.15, "PT8H10M"),
+            ("Delta Air Lines", "DL", "DL0126", 1.25, "PT8H30M"),
+        ]
+
+        offers: List[FlightOfferResponse] = []
+        for idx, (carrier_name, carrier_code, flight_num, multiplier, duration) in enumerate(sample_carriers, 1):
+            price = round(base_price * multiplier * request.passengers, 2)
+            amount_str = f"{price:.2f}"
+            
+            outbound_slice = FlightSliceResponse(
+                id=f"sli_demo_out_{idx}",
+                origin=AirportLocation(iata_code=request.origin, name=f"{request.origin} International Airport"),
+                destination=AirportLocation(iata_code=request.destination, name=f"{request.destination} Airport"),
+                duration=duration,
+                departure_date=dep_date_str,
+                segments=[
+                    FlightSegmentResponse(
+                        id=f"seg_demo_out_{idx}",
+                        origin=AirportLocation(iata_code=request.origin, name=f"{request.origin} International Airport"),
+                        destination=AirportLocation(iata_code=request.destination, name=f"{request.destination} Airport"),
+                        departing_at=f"{dep_date_str}T09:30:00",
+                        arriving_at=f"{dep_date_str}T17:15:00",
+                        carrier_name=carrier_name,
+                        carrier_code=carrier_code,
+                        flight_number=flight_num,
+                        duration=duration,
+                    )
+                ]
+            )
+            slices = [outbound_slice]
+
+            if ret_date_str:
+                return_slice = FlightSliceResponse(
+                    id=f"sli_demo_ret_{idx}",
+                    origin=AirportLocation(iata_code=request.destination, name=f"{request.destination} Airport"),
+                    destination=AirportLocation(iata_code=request.origin, name=f"{request.origin} International Airport"),
+                    duration=duration,
+                    departure_date=ret_date_str,
+                    segments=[
+                        FlightSegmentResponse(
+                            id=f"seg_demo_ret_{idx}",
+                            origin=AirportLocation(iata_code=request.destination, name=f"{request.destination} Airport"),
+                            destination=AirportLocation(iata_code=request.origin, name=f"{request.origin} International Airport"),
+                            departing_at=f"{ret_date_str}T11:00:00",
+                            arriving_at=f"{ret_date_str}T18:45:00",
+                            carrier_name=carrier_name,
+                            carrier_code=carrier_code,
+                            flight_number=f"{carrier_code}9{idx}1",
+                            duration=duration,
+                        )
+                    ]
+                )
+                slices.append(return_slice)
+
+            offers.append(
+                FlightOfferResponse(
+                    id=f"off_demo_{request.origin}_{request.destination}_{idx}",
+                    total_price=price,
+                    total_amount=amount_str,
+                    currency="USD",
+                    airline_name=carrier_name,
+                    airline_code=carrier_code,
+                    cabin_class=cabin_str,
+                    is_demo=True,
+                    booking_url=f"https://www.{carrier_name.lower().replace(' ', '')}.com",
+                    slices=slices,
+                    provider="duffel_demo_fixture",
+                )
+            )
+
+        return FlightSearchResponse(
+            search_id=f"sea_demo_{request.origin}_{request.destination}",
+            total_offers=len(offers),
+            offers=offers,
+            provider="duffel_demo_fixture",
+            live_mode=False,
+            is_demo=True,
+            demo_notice="DEMO DATA: Duffel API key is unconfigured on backend. Showing illustrative test fixture data for development and review.",
+        )
