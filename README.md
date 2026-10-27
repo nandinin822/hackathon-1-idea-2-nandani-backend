@@ -1,105 +1,280 @@
-# BookMyflight API
+# A Una Milla de Tu Destino — Backend (HP-backend)
 
-This repository is the API. It prices a cash fare against an award, builds an eight-month points plan, reads a booking link, and answers whether two card balances can share one ticket.
+FastAPI backend service for **"A Una Milla de Tu Destino"**, a travel-hacking proof of concept (POC).
 
-The product plan, the screens, and how a full trip is checked are in the frontend repository: [hackathon-1-idea-2-nandani-frontend](https://github.com/nandinin822/hackathon-1-idea-2-nandani-frontend).
+---
 
-The question the API answers is: how much could this user save on this trip?
+## 🏗 Project Architecture
 
-## What this service does
+- **Backend Framework:** Python 3.11+ with FastAPI & Uvicorn
+- **API Pattern:** Modular routers (`app/routers/`), isolated provider service integrations (`app/services/`), and typed Pydantic models (`app/models/`)
+- **Configuration:** Managed via Pydantic Settings and environment variables (`.env`)
+- **Deployment Target:** Render (Web Service)
+- **Frontend Target:** React + Vite deployed independently on Vercel
 
-A quick flight takes an origin, a destination, a date, a cabin, travellers, and the cards in the wallet. The response is the normal price, the hacked price (taxes plus miles), the saving, the transfer, and three booking steps.
+---
 
-A full trip adds flexible dates, nearby airports, a stopover, and a return date. A return is priced as two one-way awards. Travellers scale the miles, the taxes, and the cash fare.
+## 📁 Repository Structure
 
-A plan takes monthly groceries, dining, shopping, bills, and rent. Each category is placed on the card that earns the most miles in a program those cards can transfer into. A new card is recommended only when its welcome bonus books the trip sooner.
+```
+HP-backend/
+├── app/
+│   ├── __init__.py           # Package root
+│   ├── main.py               # FastAPI initialization, CORS middleware, router registration
+│   ├── config.py             # Settings loader, CORS parsing, production safety checks
+│   ├── models/
+│   │   ├── __init__.py
+│   │   └── flights.py        # Pydantic request & response schemas for flight search
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── health.py         # GET /health endpoint for Render uptime monitoring
+│   │   └── flights.py        # POST /api/v1/flights/cash endpoint
+│   └── services/
+│       ├── __init__.py
+│       └── duffel.py         # Duffel API v2 HTTP client integration & response parsing
+├── tests/
+│   ├── __init__.py
+│   ├── test_health.py        # Health check unit test
+│   └── test_flights.py       # Mocked Duffel tests (success, errors, timeouts, validation)
+├── .env.example              # Template for environment variables
+├── .gitignore                # Excludes secrets, virtual environments, cache
+├── render.yaml               # Render Infrastructure-as-Code deployment blueprint
+├── requirements.txt          # Python package dependencies
+└── README.md                 # Setup and deployment documentation
+```
 
-Points move from a bank currency into one airline program. They do not move from one bank to another. Two cards combine only when both transfer into the same program.
+---
 
-## The five systems
+## 🚀 Local Development Setup
 
-| Job | Planned source | In this repository now |
-| --- | --- | --- |
-| Advisor | Gemini 1.5 Flash or GPT-4o-mini | `answer_copilot` and `write_strategy_narrative` write the sentences from the chart. No model call. |
-| Link and screenshot | Gemini vision, plus a text parser | `POST /api/parse` reads a link or a line of text. `POST /api/parse-screenshot` checks the file type and returns a sample booking. The image is not sent to a model. |
-| Cash price | Amadeus, Duffel, or SerpApi | The cash fare is the number stored on the sample award chart. |
-| Awards and transfers | Rules engine, plus Seats.aero or Roame | The chart, the ratios, nearby airports, and the spend planner are implemented in `app/engine.py`. Live seat search is not called. |
-| Booking | Deep link to the airline award page | Step 2 of the checklist is that link, with origin, destination, date, and cabin. |
+### 1. Prerequisites
+- **Python 3.11 or higher** installed.
 
-The model must not invent a fare, a mileage number, or a transfer ratio. It explains the result the engine returned.
+### 2. Create and Activate a Virtual Environment
 
-## Database
+**On Windows (PowerShell):**
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
 
-MongoDB is the database. It stores what the user created. The award chart and the transfer ratios stay in the rules engine. A live fare is fetched when a trip is checked, then that quote is saved.
+*(If using `uv`: `uv venv .venv --python 3.11` then `.\.venv\Scripts\Activate.ps1`)*
 
-| Collection | What it holds |
-| --- | --- |
-| `users` | The account. No bank login. Balances are what the user typed. |
-| `wallets` | Cards and point balances for that user. |
-| `trips` | A quick flight or a full trip: stops, dates, travellers, cabin. |
-| `quotes` | Cash price, hacked price, saving, and the program for one check. |
-| `plans` | The eight-month roadmap, the recommended card, and the month the award unlocks. |
-| `savedTrips` | Trips the user kept, so the home screen can total the savings. |
-
-This demo does not connect to MongoDB yet. The sample catalog is `app/data.py`.
-
-## Run
-
+**On macOS / Linux:**
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Docs: http://127.0.0.1:8000/docs
+### 3. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
 
-The browser origins allowed by CORS are `http://127.0.0.1:5173` and `http://localhost:5173`.
+### 4. Configure Environment Variables
+Copy the `.env.example` file to create your local `.env`:
 
-Tests:
+**Windows (PowerShell):**
+```powershell
+Copy-Item .env.example .env
+```
+
+**macOS / Linux:**
+```bash
+cp .env.example .env
+```
+
+In `.env`, configure your settings:
+```env
+ENVIRONMENT=development
+PORT=8000
+ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+DUFFEL_API_KEY=duffel_test_your_token_here
+```
+
+### 5. Run the Local Server
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+Once running:
+- **API Base:** [http://127.0.0.1:8000](http://127.0.0.1:8000)
+- **Health Check:** [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+- **Interactive API Docs (Swagger):** [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+---
+
+## ✈️ API Endpoints
+
+### 1. Health Check
+- **Endpoint:** `GET /health`
+- **Response:**
+  ```json
+  {
+    "status": "ok"
+  }
+  ```
+
+---
+
+### 2. Cash Flight Search (Duffel API v2)
+- **Endpoint:** `POST /api/v1/flights/cash`
+- **Summary:** Searches live/test cash flight offers through Duffel without fabricating prices or availability.
+- **Headers:** `Content-Type: application/json`
+
+#### Request Parameters
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `origin` | `string` | **Yes** | 3-letter IATA code (e.g. `"JFK"`). Auto-uppercased. |
+| `destination` | `string` | **Yes** | 3-letter IATA code (e.g. `"LHR"`). Must differ from origin. |
+| `departure_date` | `string` (date) | **Yes** | YYYY-MM-DD. Cannot be in the past. |
+| `return_date` | `string` (date) | No | YYYY-MM-DD. For round-trips. Must be on or after departure date. |
+| `passengers` | `integer` | No | Adult count between 1 and 9 (default: `1`). |
+| `cabin_class` | `string` | No | `"economy"`, `"premium_economy"`, `"business"`, or `"first"` (default: `"economy"`). |
+
+#### Example Request Body (One-Way)
+```json
+{
+  "origin": "JFK",
+  "destination": "LHR",
+  "departure_date": "2026-11-15",
+  "passengers": 1,
+  "cabin_class": "economy"
+}
+```
+
+#### Example Request Body (Round-Trip)
+```json
+{
+  "origin": "JFK",
+  "destination": "MAD",
+  "departure_date": "2026-11-15",
+  "return_date": "2026-11-25",
+  "passengers": 2,
+  "cabin_class": "business"
+}
+```
+
+#### Example Response Body
+```json
+{
+  "search_id": "orq_0000BBoYyuVSBL129Q8c8z",
+  "total_offers": 1,
+  "provider": "duffel",
+  "offers": [
+    {
+      "id": "off_034mnQ1d7mJXnqZ0uZyfR2",
+      "total_price": 219.04,
+      "total_amount": "219.04",
+      "currency": "EUR",
+      "airline_name": "American Airlines",
+      "airline_code": "AA",
+      "provider": "duffel",
+      "slices": [
+        {
+          "id": "sli_0000BBoY...",
+          "origin": {
+            "iata_code": "JFK",
+            "name": "John F. Kennedy International Airport",
+            "city_name": "New York"
+          },
+          "destination": {
+            "iata_code": "LHR",
+            "name": "Heathrow Airport",
+            "city_name": "London"
+          },
+          "duration": "PT7H58M",
+          "segments": [
+            {
+              "id": "seg_0000BBoY...",
+              "origin": {
+                "iata_code": "JFK",
+                "name": "John F. Kennedy International Airport",
+                "city_name": "New York"
+              },
+              "destination": {
+                "iata_code": "LHR",
+                "name": "Heathrow Airport",
+                "city_name": "London"
+              },
+              "departing_at": "2026-11-15T18:00:00",
+              "arriving_at": "2026-11-16T06:58:00",
+              "carrier_name": "American Airlines",
+              "carrier_code": "AA",
+              "flight_number": "100",
+              "duration": "PT7H58M"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### Error Responses
+- **`400 Bad Request`**: Downstream airline/provider rejected search parameters (e.g. no routes operated).
+- **`422 Unprocessable Entity`**: Invalid request format (e.g., origin equals destination, past date, invalid airport code).
+- **`502 Bad Gateway`**: Upstream Duffel provider network or schema issue.
+- **`503 Service Unavailable`**: `DUFFEL_API_KEY` is not configured in backend environment.
+- **`504 Gateway Timeout`**: Upstream Duffel search timed out (sensible 25-second limit).
+
+---
+
+## 🧪 Running Automated Tests
+
+A comprehensive test suite is included in `tests/` featuring mocked Duffel HTTP responses so **no live token is required**:
 
 ```bash
-.venv/bin/pytest
+pytest -v
 ```
 
-## API
+Tests verify:
+- Health check `GET /health` returns HTTP 200.
+- Successful one-way and round-trip payload parsing.
+- Input validation (invalid IATA codes, identical origin/destination, past dates, invalid passenger numbers).
+- Error isolation (missing credentials 503, provider 400, timeout 504, network error 502, malformed response 502).
+- Security assertion ensuring API keys or `Authorization` headers are never leaked in response text.
 
-| Method | Path | Role |
-| --- | --- | --- |
-| GET | `/api/health` | Service is up |
-| GET | `/api/catalog` | Airports, cards, spend categories, programs |
-| GET | `/api/transfers` | Bank currency to airline program, ratio, and sweet spot |
-| GET | `/api/routes` | City pairs the chart can price |
-| GET | `/api/demos` | The four judge demos |
-| GET | `/api/demos/{demo_id}` | One demo |
-| POST | `/api/hack` | Cash fare versus the award the supplied cards can reach |
-| POST | `/api/strategy` | Spend plan and new-card recommendation |
-| POST | `/api/parse` | Body `{ "text": "..." }`. A booking link or a line of text |
-| POST | `/api/parse-screenshot` | Multipart image, under 5 MB. PNG, JPEG, GIF, or WebP |
-| POST | `/api/copilot` | `message`, and optional `balances`, `origin`, `destination` |
+---
 
-`POST /api/hack` accepts `origin`, `destination`, optional `date`, `cabin` (`economy` or `business`), `passengers` (1 to 9), `cards` as `{ "id", "points" }`, `flexible`, `nearby`, `via`, and `return_date`.
+## 🌐 Connecting the React + Vite Frontend (CORS)
 
-`POST /api/strategy` accepts `origin`, `destination`, `months` (1 to 24), `monthly_expenses`, `cards`, `use_portals`, and an optional `target_points` that overrides the chart.
+### Local Development
+The default settings allow `http://localhost:5173` (Vite's default port). When running `npm run dev` in your frontend directory, requests are accepted automatically.
 
-Errors return a JSON `detail.message`.
+### Production (Vercel)
+When deploying your React app on Vercel:
+1. In your Render backend dashboard, update `ALLOWED_ORIGINS`:
+   ```env
+   ALLOWED_ORIGINS=https://your-frontend-app.vercel.app
+   ```
+2. In production mode (`ENVIRONMENT=production`), the backend strictly rejects wildcard `*` origins to protect against cross-origin attacks.
 
-## Rules the engine already applies
+---
 
-- Portal extras, when enabled, add 4x on dining and 2x on shopping.
-- Citi Custom Cash applies 5x to one top category: groceries, dining, or shopping.
-- A household milestone adds 8,000 points after 8,000 euros or 80,000 rupees of bills plus rent, and only when rent itself earns nothing.
-- If rent earns nothing, a Bilt tip is returned and is not added to the timeline.
-- Business class is accepted and priced as economy, with a note. A stopover is a note unless that city is already on the chart.
-- A ratio of 0.5 is shown as 2:1. Axis Edge Miles to KrisFlyer is 2:1.
+## ☁️ Deploying to Render
 
-## Judge demos
+### Option A: Using `render.yaml` (Recommended)
+1. Push this repository to GitHub.
+2. In Render, create a new **Blueprint** and connect your `HP-backend` repository.
+3. Render will configure the service automatically.
 
-| Demo | Result |
-| --- | --- |
-| `euro-850` | Madrid to New York. Cash 850 euros. Hacked fare 60 euros plus 30,000 Flying Blue miles. 92 percent off. |
-| `inr-3500` | Delhi to London. Cash 55,000 rupees. Tax 3,500 rupees plus 42,000 KrisFlyer miles. |
-| `bali` | Madrid to Bali in 8 months from grocery, dining, and household spend. Chase Sapphire Preferred cuts the wait from 8 months to 4. |
-| `dubai-combine` | 25,000 Amex and 15,000 Chase combine in Flying Blue: 40,000 miles for a 35,000-mile award. |
+### Option B: Manual Web Service Setup on Render
+1. Create a **New Web Service** and select your GitHub repository.
+2. Configure settings:
+   - **Environment:** `Python`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - **Health Check Path:** `/health`
+3. Add Environment Variables in the Render dashboard:
+   - `ENVIRONMENT`: `production`
+   - `ALLOWED_ORIGINS`: `https://your-frontend-app.vercel.app`
+   - `DUFFEL_API_KEY`: `duffel_test_...` or `duffel_live_...`
 
-Confirm the seat on the airline site before moving points. Transfers usually cannot be reversed.
+---
+
+## 🔒 Security Best Practices
+- **No Hardcoded Secrets:** API keys and sensitive credentials remain in `.env` (locally) or Render environment settings (production).
+- **Never Log Secrets:** Endpoints and logging handlers never dump raw environment variables or auth tokens.
+- **Service Isolation:** External providers (like Duffel) reside exclusively in `app/services/` behind domain interfaces.

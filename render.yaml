@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: hp-backend
+    env: python
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: DUFFEL_API_KEY
+        sync: false
